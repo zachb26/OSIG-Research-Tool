@@ -79,6 +79,52 @@ def render_single_stock_view(db, bot, model_settings, active_assumption_fingerpr
                 f"Sector: {row.get('Sector', 'Unknown')} | Industry: {row.get('Industry', 'Unknown')}"
             )
 
+            _tr_1y  = row.get("Total_Return_1Y")
+            _tr_2y  = row.get("Total_Return_2Y")
+            _spy_1y = row.get("SPY_Return_1Y")
+            _spy_2y = row.get("SPY_Return_2Y")
+            _etf_1y = row.get("Sector_ETF_Return_1Y")
+            _etf_2y = row.get("Sector_ETF_Return_2Y")
+            _etf_ticker = row.get("Sector_ETF_Ticker") or "Sector ETF"
+            _ticker_str = str(row.get("Ticker", ""))
+            if all(v is not None for v in [_tr_2y, _spy_2y, _etf_2y]):
+                _wlabel, _sr, _spyr, _etfr = "2Y", _tr_2y, _spy_2y, _etf_2y
+            elif all(v is not None for v in [_tr_1y, _spy_1y, _etf_1y]):
+                _wlabel, _sr, _spyr, _etfr = "1Y", _tr_1y, _spy_1y, _etf_1y
+            else:
+                _wlabel = None
+            if _wlabel:
+                st.info(
+                    f"**{_ticker_str} {_wlabel} total return: {fmt.format_percent(_sr)}** "
+                    f"vs SPY {fmt.format_percent(_spyr)} "
+                    f"vs {_etf_ticker} {fmt.format_percent(_etfr)}"
+                )
+                _bc1, _bc2, _bc3, _bc4 = st.columns(4)
+                _bc1.metric(
+                    f"{_ticker_str} 1Y",
+                    fmt.format_percent(_tr_1y) if _tr_1y is not None else "N/A",
+                    delta=fmt.format_percent((_tr_1y or 0) - (_spy_1y or 0)) if _tr_1y is not None and _spy_1y is not None else None,
+                    delta_color="normal",
+                    help="Stock total return over the past 12 months.",
+                )
+                _bc2.metric(
+                    "SPY 1Y",
+                    fmt.format_percent(_spy_1y) if _spy_1y is not None else "N/A",
+                    help="S&P 500 ETF (SPY) total return over the past 12 months.",
+                )
+                _bc3.metric(
+                    f"{_etf_ticker} 1Y",
+                    fmt.format_percent(_etf_1y) if _etf_1y is not None else "N/A",
+                    help=f"Sector ETF ({_etf_ticker}) total return over the past 12 months.",
+                )
+                _bc4.metric(
+                    f"{_ticker_str} 2Y",
+                    fmt.format_percent(_tr_2y) if _tr_2y is not None else "N/A",
+                    delta=fmt.format_percent((_tr_2y or 0) - (_spy_2y or 0)) if _tr_2y is not None and _spy_2y is not None else None,
+                    delta_color="normal",
+                    help="Stock total return over the past 24 months vs SPY.",
+                )
+
             ui.render_analysis_signal_cards(
                 [
                     {
@@ -990,54 +1036,8 @@ def render_single_stock_view(db, bot, model_settings, active_assumption_fingerpr
                         st.caption("No DCF snapshot is saved yet for this ticker.")
 
                 snapshot_assumptions = settings.normalize_dcf_settings(dcf_assumptions or live_dcf_settings)
-                ui.render_analysis_signal_cards(
-                    [
-                        {
-                            "label": "DCF Fair Value",
-                            "value": f"${dcf_intrinsic_value:,.2f}" if fetch.has_numeric_value(dcf_intrinsic_value) else "N/A",
-                            "note": "Per-share estimate from the most recent saved DCF snapshot.",
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["DCF Fair Value"],
-                        },
-                        {
-                            "label": "DCF Upside",
-                            "value": fmt.format_percent(dcf_upside),
-                            "note": "Gap between the snapshot value and the current stock price.",
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["DCF Upside"],
-                        },
-                        {
-                            "label": "DCF WACC",
-                            "value": fmt.format_percent(row.get("DCF_WACC")),
-                            "note": "Discount rate used in the saved snapshot.",
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["DCF WACC"],
-                        },
-                        {
-                            "label": "Growth Source",
-                            "value": str(row.get("DCF_Source", "Unavailable")),
-                            "note": str(row.get("DCF_Guidance_Summary") or "Source of the starting growth assumption."),
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["DCF Source"],
-                        },
-                        {
-                            "label": "Projection Years",
-                            "value": str(int(snapshot_assumptions.get("projection_years", const.DCF_PROJECTION_YEARS))),
-                            "note": "Explicit forecast length used for the saved snapshot.",
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["DCF Fair Value"],
-                        },
-                        {
-                            "label": "Terminal Growth",
-                            "value": fmt.format_percent(snapshot_assumptions.get("terminal_growth_rate")),
-                            "note": "Long-run rate used after the explicit projection window.",
-                            "tone": "neutral",
-                            "help": const.ANALYSIS_HELP_TEXT["Terminal Growth"],
-                        },
-                    ],
-                    columns=3,
-                )
 
+                # ── Primary valuation display: scenarios > point estimate ─────
                 # ── Bull / Base / Bear Scenario Builder ──────────────────────
                 dcf_bull_fv     = fmt.safe_num(row.get("DCF_Bull_Fair_Value"))
                 dcf_bear_fv     = fmt.safe_num(row.get("DCF_Bear_Fair_Value"))
@@ -1047,6 +1047,122 @@ def render_single_stock_view(db, bot, model_settings, active_assumption_fingerpr
                 bear_saved_asmp = fetch.safe_json_loads(row.get("DCF_Bear_Assumptions"), default={})
                 base_saved_asmp = fetch.safe_json_loads(row.get("DCF_Assumptions"), default={})
                 current_price   = fmt.safe_num(row.get("Price"))
+                _has_scenarios  = fetch.has_numeric_value(dcf_bull_fv) and fetch.has_numeric_value(dcf_bear_fv)
+
+                if _has_scenarios:
+                    # Scenarios exist — show them as the primary valuation display with drivers
+                    _pe_ratio = fmt.safe_num(row.get("PE_Ratio"))
+                    _eps = (current_price / _pe_ratio) if (
+                        fetch.has_numeric_value(current_price) and fetch.has_numeric_value(_pe_ratio) and _pe_ratio > 0
+                    ) else None
+                    p_b  = scenario_probs.get("bull", 25)
+                    p_bs = scenario_probs.get("base", 55)
+                    p_br = scenario_probs.get("bear", 20)
+                    base_fv_disp = fmt.safe_num(row.get("DCF_Intrinsic_Value"))
+
+                    def _scen_upside(fv):
+                        if fetch.has_numeric_value(fv) and fetch.has_numeric_value(current_price) and current_price > 0:
+                            return (fv - current_price) / current_price
+                        return None
+
+                    def _scen_note(asmp_dict, fv):
+                        parts = []
+                        gr = asmp_dict.get("manual_growth_rate")
+                        tgr = asmp_dict.get("terminal_growth_rate")
+                        if fetch.has_numeric_value(gr):
+                            parts.append(f"{gr:.0%} rev. growth")
+                        if fetch.has_numeric_value(tgr):
+                            parts.append(f"{tgr:.1%} terminal")
+                        if _eps and _eps > 0 and fetch.has_numeric_value(fv):
+                            parts.append(f"{fv / _eps:.1f}x implied P/E")
+                        up = _scen_upside(fv)
+                        if up is not None:
+                            parts.append(fmt.format_percent(up))
+                        return " · ".join(parts)
+
+                    _blended_upside = _scen_upside(dcf_blended_fv)
+                    ui.render_analysis_signal_cards(
+                        [
+                            {
+                                "label": f"Bear ({p_br}%)",
+                                "value": f"${dcf_bear_fv:,.2f}" if fetch.has_numeric_value(dcf_bear_fv) else "N/A",
+                                "note": _scen_note(bear_saved_asmp, dcf_bear_fv),
+                                "tone": "bad",
+                                "help": "Bear-case DCF fair value and the assumption drivers behind it.",
+                            },
+                            {
+                                "label": f"Base ({p_bs}%)",
+                                "value": f"${base_fv_disp:,.2f}" if fetch.has_numeric_value(base_fv_disp) else "N/A",
+                                "note": _scen_note(base_saved_asmp, base_fv_disp),
+                                "tone": "neutral",
+                                "help": "Base-case DCF fair value and the assumption drivers behind it.",
+                            },
+                            {
+                                "label": f"Bull ({p_b}%)",
+                                "value": f"${dcf_bull_fv:,.2f}" if fetch.has_numeric_value(dcf_bull_fv) else "N/A",
+                                "note": _scen_note(bull_saved_asmp, dcf_bull_fv),
+                                "tone": "good",
+                                "help": "Bull-case DCF fair value and the assumption drivers behind it.",
+                            },
+                            {
+                                "label": "Blended Target",
+                                "value": f"${dcf_blended_fv:,.2f}" if fetch.has_numeric_value(dcf_blended_fv) else "N/A",
+                                "note": (fmt.format_percent(_blended_upside) + " vs current price") if _blended_upside is not None else "Probability-weighted",
+                                "tone": "neutral",
+                                "help": "Probability-weighted fair value across all three scenarios.",
+                            },
+                        ],
+                        columns=4,
+                    )
+                else:
+                    # No scenarios yet — show point estimate and prompt to build scenarios
+                    ui.render_analysis_signal_cards(
+                        [
+                            {
+                                "label": "DCF Fair Value",
+                                "value": f"${dcf_intrinsic_value:,.2f}" if fetch.has_numeric_value(dcf_intrinsic_value) else "N/A",
+                                "note": "Point estimate — build Bull / Base / Bear scenarios below for richer context.",
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["DCF Fair Value"],
+                            },
+                            {
+                                "label": "DCF Upside",
+                                "value": fmt.format_percent(dcf_upside),
+                                "note": "Gap between the snapshot value and the current stock price.",
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["DCF Upside"],
+                            },
+                            {
+                                "label": "DCF WACC",
+                                "value": fmt.format_percent(row.get("DCF_WACC")),
+                                "note": "Discount rate used in the saved snapshot.",
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["DCF WACC"],
+                            },
+                            {
+                                "label": "Growth Source",
+                                "value": str(row.get("DCF_Source", "Unavailable")),
+                                "note": str(row.get("DCF_Guidance_Summary") or "Source of the starting growth assumption."),
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["DCF Source"],
+                            },
+                            {
+                                "label": "Projection Years",
+                                "value": str(int(snapshot_assumptions.get("projection_years", const.DCF_PROJECTION_YEARS))),
+                                "note": "Explicit forecast length used for the saved snapshot.",
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["DCF Fair Value"],
+                            },
+                            {
+                                "label": "Terminal Growth",
+                                "value": fmt.format_percent(snapshot_assumptions.get("terminal_growth_rate")),
+                                "note": "Long-run rate used after the explicit projection window.",
+                                "tone": "neutral",
+                                "help": const.ANALYSIS_HELP_TEXT["Terminal Growth"],
+                            },
+                        ],
+                        columns=3,
+                    )
 
                 with st.expander("Bull / Base / Bear Scenarios", expanded=bool(fetch.has_numeric_value(dcf_bull_fv))):
                     st.caption("Build three DCF scenarios with independent assumptions and probability weights. The blended target is the probability-weighted fair value.")
@@ -1194,51 +1310,8 @@ def render_single_stock_view(db, bot, model_settings, active_assumption_fingerpr
                                 }
                                 st.rerun()
 
-                    # Display saved scenario results
-                    has_scenarios = fetch.has_numeric_value(dcf_bull_fv) and fetch.has_numeric_value(dcf_bear_fv)
-                    if has_scenarios:
-                        st.markdown("**Scenario Results**")
-                        p_b  = scenario_probs.get("bull", 25)
-                        p_bs = scenario_probs.get("base", 55)
-                        p_br = scenario_probs.get("bear", 20)
-                        bull_upside = fmt.safe_num(row.get("DCF_Bull_Upside"))
-                        bear_upside = fmt.safe_num(row.get("DCF_Bear_Upside"))
-                        base_fv = fmt.safe_num(row.get("DCF_Intrinsic_Value"))
-                        base_upside = fmt.safe_num(row.get("DCF_Upside"))
-                        blended_upside = (
-                            (dcf_blended_fv - current_price) / current_price
-                            if fetch.has_numeric_value(dcf_blended_fv) and fetch.has_numeric_value(current_price) and current_price > 0
-                            else None
-                        )
-                        ui.render_analysis_signal_cards(
-                            [
-                                {
-                                    "label": f"Bull Case ({p_b}%)",
-                                    "value": f"${dcf_bull_fv:,.2f}" if fetch.has_numeric_value(dcf_bull_fv) else "N/A",
-                                    "note": fmt.format_percent(bull_upside) + " upside" if fetch.has_numeric_value(bull_upside) else "",
-                                    "tone": "good",
-                                },
-                                {
-                                    "label": f"Base Case ({p_bs}%)",
-                                    "value": f"${base_fv:,.2f}" if fetch.has_numeric_value(base_fv) else "N/A",
-                                    "note": fmt.format_percent(base_upside) + " upside" if fetch.has_numeric_value(base_upside) else "",
-                                    "tone": "neutral",
-                                },
-                                {
-                                    "label": f"Bear Case ({p_br}%)",
-                                    "value": f"${dcf_bear_fv:,.2f}" if fetch.has_numeric_value(dcf_bear_fv) else "N/A",
-                                    "note": fmt.format_percent(bear_upside) + " upside" if fetch.has_numeric_value(bear_upside) else "",
-                                    "tone": "bad",
-                                },
-                                {
-                                    "label": "Blended Target",
-                                    "value": f"${dcf_blended_fv:,.2f}" if fetch.has_numeric_value(dcf_blended_fv) else "N/A",
-                                    "note": fmt.format_percent(blended_upside) + " upside" if fetch.has_numeric_value(blended_upside) else "Probability-weighted fair value",
-                                    "tone": "neutral",
-                                },
-                            ],
-                            columns=4,
-                        )
+                    if _has_scenarios:
+                        st.caption("Scenarios saved — results shown above. Adjust assumptions and rebuild to update.")
 
                 # ── End Scenario Builder ──────────────────────────────────────
                 if dcf_snapshot_exists and not dcf_history.empty:

@@ -268,6 +268,16 @@ def normalize_sector(raw: str) -> str:
     return SECTOR_MAP.get(str(raw or "").strip(), str(raw or "").strip() or "Unknown")
 
 
+SECTOR_ETF_MAP = {
+    "Information Technology": "XLK",
+    "Healthcare":             "XLV",
+    "Financials":             "XLF",
+    "IMEU":                   "XLI",
+    "Consumer Goods":         "XLY",
+    "Real Estate":            "XLRE",
+}
+DEFAULT_SECTOR_ETF = "SPY"
+
 CYCLICAL_SECTORS = {"IMEU", "Consumer Goods", "Financials"}
 DEFENSIVE_SECTORS = {"Healthcare"}
 INCOME_SECTORS = {"IMEU", "Consumer Goods", "Information Technology"}
@@ -358,6 +368,13 @@ ANALYSIS_COLUMNS = {
     "Relative_Strength_3M": "REAL",
     "Relative_Strength_6M": "REAL",
     "Relative_Strength_1Y": "REAL",
+    "Sector_ETF_Ticker":        "TEXT",
+    "Total_Return_1Y":          "REAL",
+    "Total_Return_2Y":          "REAL",
+    "SPY_Return_1Y":            "REAL",
+    "SPY_Return_2Y":            "REAL",
+    "Sector_ETF_Return_1Y":     "REAL",
+    "Sector_ETF_Return_2Y":     "REAL",
     "Trend_Strength": "REAL",
     "Range_Position_52W": "REAL",
     "Distance_52W_High": "REAL",

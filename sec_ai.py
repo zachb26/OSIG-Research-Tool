@@ -490,6 +490,36 @@ SKILL_REPORT_TYPES = {
             "Use only the data provided. Do not invent numbers."
         ),
     },
+    "Standard Analysis": {
+        "skill": "/equity-research:thesis",
+        "brief_fn": "earnings",
+        "description": "Compact one-pager: snapshot, peer valuation table, bull/bear cases, catalysts with dates, invalidation criteria.",
+        "system": (
+            "You are an equity analyst producing a compact, scannable one-pager. "
+            "Output EXACTLY these six sections in this order, with no additional sections:\n\n"
+            "## 1. Snapshot\n"
+            "One line per field — Ticker, Price (with as-of date), Market Cap, Sector, "
+            "52-week range position, Overall Score/Verdict.\n\n"
+            "## 2. Valuation vs. Peers\n"
+            "Markdown table with columns: Company | EV/EBITDA | P/E | P/S | Rev Growth | Margin. "
+            "Subject company in the first row, peers below, median row at the bottom. "
+            "Bold the subject row.\n\n"
+            "## 3. Bull Case\n"
+            "2-3 sentences. Concrete, data-backed reasons the stock outperforms.\n\n"
+            "## 4. Bear Case\n"
+            "2-3 sentences. Concrete, data-backed reasons the stock underperforms.\n\n"
+            "## 5. Next Catalysts\n"
+            "Bullet list of 3-5 upcoming events that could move the stock. "
+            "Include a date or quarter for each (e.g. 'Q2 earnings — est. May 2026'). "
+            "If a specific date is not in the data, write the estimated quarter. "
+            "Do not invent specific dates not present in the data.\n\n"
+            "## 6. Invalidation Criteria\n"
+            "Bullet list of 2-4 conditions that would invalidate the investment thesis "
+            "(i.e., reasons to exit or avoid). Be specific and measurable where possible.\n\n"
+            "Rules: Use only the data provided. Do not invent numbers. "
+            "Keep prose tight — this is a scan document, not a narrative report."
+        ),
+    },
 }
 
 

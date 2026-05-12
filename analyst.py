@@ -32,6 +32,16 @@ from backtest import *
 from database import DatabaseManager
 
 
+def _hist_abs_return(hist, window_days):
+    """Return absolute total return over the last *window_days* trading days, or None."""
+    if hist is None or hist.empty or "Close" not in hist.columns:
+        return None
+    s = hist["Close"].dropna().astype(float)
+    if len(s) <= window_days:
+        return None
+    return float(s.iloc[-1] / s.iloc[-window_days - 1] - 1)
+
+
 def compute_options_signals(chains, current_price, close_series):
     """
     Derive four options-implied signals from a fetched options payload.
@@ -277,6 +287,17 @@ class StockAnalyst:
             label: compute_relative_strength(close, benchmark_close, window)
             for label, window in BENCHMARK_RELATIVE_STRENGTH_WINDOWS.items()
         }
+        _sector_raw = normalize_sector(info.get("sector", ""))
+        sector_etf_ticker = SECTOR_ETF_MAP.get(_sector_raw, DEFAULT_SECTOR_ETF)
+        stock_hist_2y, _ = fetch_ticker_history_with_retry(ticker, period="2y", attempts=2)
+        spy_hist_2y, _ = fetch_ticker_history_with_retry(DEFAULT_BENCHMARK_TICKER, period="2y", attempts=2)
+        sector_etf_hist_2y, _ = fetch_ticker_history_with_retry(sector_etf_ticker, period="2y", attempts=2)
+        stock_total_1y = _hist_abs_return(stock_hist_2y, 252)
+        stock_total_2y = _hist_abs_return(stock_hist_2y, 504)
+        spy_return_1y = _hist_abs_return(spy_hist_2y, 252)
+        spy_return_2y = _hist_abs_return(spy_hist_2y, 504)
+        sector_etf_return_1y = _hist_abs_return(sector_etf_hist_2y, 252)
+        sector_etf_return_2y = _hist_abs_return(sector_etf_hist_2y, 504)
         volatility_1m = calculate_realized_volatility(close, 22)
         volatility_1y = calculate_realized_volatility(close, 252)
         momentum_1m_risk_adjusted = safe_divide(momentum_1m, (volatility_1m / np.sqrt(12)) if has_numeric_value(volatility_1m) else None)
@@ -694,6 +715,13 @@ class StockAnalyst:
             "Relative_Strength_3M": relative_strength_metrics.get("Relative_Strength_3M"),
             "Relative_Strength_6M": relative_strength_metrics.get("Relative_Strength_6M"),
             "Relative_Strength_1Y": relative_strength_metrics.get("Relative_Strength_1Y"),
+            "Sector_ETF_Ticker":    sector_etf_ticker,
+            "Total_Return_1Y":      stock_total_1y,
+            "Total_Return_2Y":      stock_total_2y,
+            "SPY_Return_1Y":        spy_return_1y,
+            "SPY_Return_2Y":        spy_return_2y,
+            "Sector_ETF_Return_1Y": sector_etf_return_1y,
+            "Sector_ETF_Return_2Y": sector_etf_return_2y,
             "Trend_Strength": trend_strength,
             "Range_Position_52W": range_position_52w,
             "Distance_52W_High": distance_52w_high,
