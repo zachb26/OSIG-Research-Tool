@@ -1050,11 +1050,14 @@ class PortfolioAnalyst:
 
         cumret = (1 + portfolio_returns).cumprod()
         rolling_max = cumret.cummax()
+        drawdowns = cumret / rolling_max - 1
         var_threshold = np.percentile(portfolio_returns, 5)
-        cvar_95 = portfolio_returns[portfolio_returns <= var_threshold].mean() * trading_days
-        drawdowns_pct = (cumret / rolling_max - 1) * 100
-        ulcer_index = np.sqrt((drawdowns_pct ** 2).mean())
-        max_drawdown = (cumret / rolling_max - 1).min()
+        tail_returns = portfolio_returns[portfolio_returns <= var_threshold]
+        cvar_95_pos = (-tail_returns.mean() * np.sqrt(trading_days)) if len(tail_returns) > 0 else np.nan
+        cvar_95_neg = (tail_returns.mean() * trading_days) if len(tail_returns) > 0 else np.nan
+        ulcer_index_dec = np.sqrt((drawdowns ** 2).mean())
+        ulcer_index_pct = np.sqrt(((drawdowns * 100) ** 2).mean())
+        max_drawdown = drawdowns.min()
 
         return {
             "Return": annual_return,
@@ -1064,8 +1067,10 @@ class PortfolioAnalyst:
             "Sharpe": sharpe,
             "Sortino": sortino,
             "Treynor": treynor,
-            "CVaR95": cvar_95,
-            "UlcerIndex": ulcer_index,
+            "CVaR-95": cvar_95_pos,
+            "Ulcer Index": ulcer_index_dec,
+            "CVaR95": cvar_95_neg,
+            "UlcerIndex": ulcer_index_pct,
             "MaxDrawdown": max_drawdown,
         }
 
